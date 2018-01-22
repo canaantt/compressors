@@ -1,0 +1,19 @@
+{
+  "name": "mongo-compress",
+  "version": "1.0.0",
+  "description": "",
+  "main": "converter.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jenny Zhang",
+  "license": "ISC",
+  "dependencies": {
+    "co": "^4.6.0",
+    "co-mongodb": "^0.1.0",
+    "jsonfile": "^4.0.0",
+    "jsonfile-promised": "0.0.1",
+    "mongoose": "^5.0.0",
+    "underscore": "^1.8.3"
+  }
+}
