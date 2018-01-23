@@ -6,9 +6,7 @@ var connection = mongoose.connection;
 var allCollections = [];
 var userCollections = [];
 var userProjectIDs = [];
-var ACCOUNT_USERS = [];
-var ACCOUNT_PERMISSIONS = [];
-var ACCOUNT_PROJECTS = [];
+
 mongoose.connect(
     'mongodb://oncoscape-dev-db1.sttrcancer.io:27017,oncoscape-dev-db2.sttrcancer.io:27017,oncoscape-dev-db3.sttrcancer.io:27017/v2?authSource=admin', {
     db: {
@@ -24,10 +22,6 @@ mongoose.connect(
     user: process.env.MONGO_USERNAME,
     pass: process.env.MONGO_PASSWORD
 });
-
-
-
-
 
 connection.once('open', function(){
     var db = connection.db; 
@@ -45,9 +39,26 @@ connection.once('open', function(){
             db.collection(collectionName).find().toArray(function(err, data){
                 mongoData = data;
             });
-            var cnvMongoData;
-            db.collection(collectionName).find().toArray(function(err, data){
-                if(collectionName.indexOf("_CNV") > -1 || collectionName.indexOf("_EXPR") > -1) {
+
+            var sampleMongData = process.env.GOOD_SAMPLE;
+            db.collection(sampleMongData).find().toArray(function(err, data){
+                if(sampleMongData.indexOf("_samplemap") > -1) {
+                    Compression.compress_sample(data);
+                }
+            });
+
+            var matrixData = '5a5671a2672fe4005779e25a_EXPR-RNAseq_log2_fpkm';
+            db.collection(matrixData).find().toArray(function(err, data){
+                if(matrixData.indexOf("_CNV") > -1 || matrixData.indexOf("_EXPR") > -1) {
+                    Compression.compress_molecular(data);
+                }
+            });
+
+            var mutData = '5a46b8d9d2601e00405c650f_MUT-prot';
+            var mut;
+            db.collection(mutData).find().toArray(function(err, data){
+                mut = data;
+                if(matrixData.indexOf("_CNV") > -1 || matrixData.indexOf("_EXPR") > -1) {
                     Compression.compress_molecular(data);
                 }
             });
@@ -65,8 +76,11 @@ connection.once('open', function(){
 });
 
 var Compression = {  
-    compress_clinical: function() {
-        return 'generic dough';
+    compress_clinical: function(clinicalData) {
+        return 'clinicalData';
+    },
+    compress_clinicalEvent: function(clinicalEventData){
+        return 'clinicalEventData';
     },
     compress_molecular: function(molecularData) {
         obj = {};
@@ -76,12 +90,28 @@ var Compression = {
         obj.ids = ids;
         obj.genes = genes;
         obj.values = values;
+        // console.log(Object.keys(obj));
+        // console.log(obj.ids);
+        console.log(obj.genes.length);
+        console.log(obj.values.length);
         return obj;
     },
-    compress_sample: function() {
-
+    compress_mutation: function(mutationData) {
+        return 'mutationData';
+    },
+    compress_sample: function(samplePatientData) {
+        var sampleData = samplePatientData[0];
+        var keys = _.uniq(_.values(sampleData));
+        console.log(keys);
+        keys.shift();
+        var obj = {};
+        keys.forEach(function(key){
+            obj[key] = Object.keys(sampleData).filter(sk=> sampleData[sk] == key)
+        });
+        console.log(obj);
+        return obj;
     }, 
-    generate_meta_data: function() {
-        return 'generate_meta_data';
+    generate_meta_data: function(projectID) {
+        return 'projectID';
     }
 };
