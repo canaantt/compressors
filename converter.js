@@ -55,10 +55,10 @@ connection.once('open', function(){
                 }
             });
 
-            var mutData = '5a46b8d9d2601e00405c650f_MUT-prot';
+            var mutData = '5a68173cb501cb005ca54e24_SNV-Oncoplex';
             db.collection(mutData).find().toArray(function(err, data){
                 mut = data;
-                if(matrixData.indexOf("_MUT") > -1) {
+                if(mutData.indexOf("_SNV") > -1 || mutData.indexOf('_SNV')) {
                     Compression.compress_mutation(data);
                 }
             });
@@ -106,8 +106,8 @@ var Compression = {
             if(f.indexOf('--num') > -1 || f.indexOf('--date') > -1) {
                 if(f.indexOf('--date') > -1){
                     fields[f] = {
-                        'min': _.min(flattened.map(d=>moment().format(d[f]))),
-                        'max': _.max(flattened.map(d=>moment().format(d[f])))
+                        'min': _.min(flattened.map(d=>d[f])),
+                        'max': _.max(flattened.map(d=>d[f]))
                     }
                 }else{
                     fields[f] = {
@@ -155,14 +155,18 @@ var Compression = {
     },
     compress_mutation: function(mutationData) {
         var obj = {};
-        var ids = molecularData[0].s;
-        var genes = molecularData.map(c=>c.m);
+        var ids = mutationData[0].s;
+        var genes = mutationData.map(c=>c.m);
         var values = [];
         var i = 0;
         var j = 0;
-        molecularData.forEach(function(byMarker){
+        mutationData.forEach(function(byMarker){
             byMarker.d.forEach(function(bySample){
-                values.push(i + '-' + j + '-' + 1);
+                if(bySample !== 'NA'){
+                    values.push(i + '-' + j + '-' + 1);
+                } else {
+                    values.push(i + '-' + j + '-' + 0);
+                } 
                 j++;
             });
             i++;
