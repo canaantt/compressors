@@ -55,11 +55,10 @@ connection.once('open', function(){
             });
 
             var mutData = '5a46b8d9d2601e00405c650f_MUT-prot';
-            var mut;
             db.collection(mutData).find().toArray(function(err, data){
                 mut = data;
-                if(matrixData.indexOf("_CNV") > -1 || matrixData.indexOf("_EXPR") > -1) {
-                    Compression.compress_molecular(data);
+                if(matrixData.indexOf("_MUT") > -1) {
+                    Compression.compress_mutation(data);
                 }
             });
           }, function (err)
@@ -77,27 +76,93 @@ connection.once('open', function(){
 
 var Compression = {  
     compress_clinical: function(clinicalData) {
-        return 'clinicalData';
+        var obj = {};
+        var ids = clinicalData.map(c=>c.id);
+        var fields = {};
+        var keys = ['enum',
+                    'num',
+                    'date',
+                    'boolean',
+                    'other'];
+        var flattened = []; 
+        clinicalData.forEach(function(d){
+            var o = {};
+            o['id'] = d.id;
+            keys.forEach(function(key){
+                if(Object.keys(d[key]).length !== 0){
+                    Object.keys(d[key]).forEach(function(k){
+                        o[k+'--'+key] = d[key][k];
+                    });
+                }
+            });
+            flattened.push(o);
+        });
+
+
+        var compiledfields = flattened.map(f=>Object.keys(f)).reduce(function(a,b){return _.uniq(a.concat(b))});
+        compiledfields.shift();
+        compiledfields.forEach(function(f){
+            if(f.indexOf('--num') > -1 || f.indexOf('--date') > -1) {
+                fields[f] = {
+                    'min': _.min(flattened.map(d=>parseFloat(d[f]))),
+                    'max': _.max(flattened.map(d=>parseFloat(d[f])))
+                }
+            } else {
+                fields[f] = _.uniq(flattened.map(d=>d[f]));
+            }
+        });
+
+        var values = flattened.map(fd=>{
+            return compiledfields.map(key => {
+                if(key.indexOf('--num') > -1 || key.indexOf('--date') > -1) {
+                    return fd[key];
+                } else {
+                   return fields[key].indexOf(fd[key]);
+                }
+            });
+        });
+
+        obj.ids = ids;
+        obj.genes = genes;
+        obj.values = values;
+        console.log(obj.genes.length);
+        console.log(obj.values.length);
+        return obj;
     },
     compress_clinicalEvent: function(clinicalEventData){
         return 'clinicalEventData';
     },
     compress_molecular: function(molecularData) {
-        obj = {};
-        ids = molecularData[0].s;
-        genes = molecularData.map(c=>c.m);
-        values = molecularData.map(c=>c.d);
+        var obj = {};
+        var ids = molecularData[0].s;
+        var genes = molecularData.map(c=>c.m);
+        var values = molecularData.map(c=>c.d);
         obj.ids = ids;
         obj.genes = genes;
         obj.values = values;
-        // console.log(Object.keys(obj));
-        // console.log(obj.ids);
         console.log(obj.genes.length);
         console.log(obj.values.length);
         return obj;
     },
     compress_mutation: function(mutationData) {
-        return 'mutationData';
+        var obj = {};
+        var ids = molecularData[0].s;
+        var genes = molecularData.map(c=>c.m);
+        var values = [];
+        var i = 0;
+        var j = 0;
+        molecularData.forEach(function(byMarker){
+            byMarker.d.forEach(function(bySample){
+                values.push(i + '-' + j + '-' + 1);
+                j++;
+            });
+            i++;
+        });
+        obj.ids = ids;
+        obj.genes = genes;
+        obj.values = values;
+        console.log(obj.values.length);
+        return obj;
     },
     compress_sample: function(samplePatientData) {
         var sampleData = samplePatientData[0];
