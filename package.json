@@ -13,6 +13,7 @@
     "co-mongodb": "^0.1.0",
     "jsonfile": "^4.0.0",
     "jsonfile-promised": "0.0.1",
+    "moment": "^2.20.1",
     "mongoose": "^5.0.0",
     "node-async-loop": "^1.2.2",
     "underscore": "^1.8.3"

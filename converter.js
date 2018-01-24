@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const jsonfile = require("jsonfile-promised");
 const _ = require("underscore");
 const asyncLoop = require('node-async-loop');
+const moment = require('moment');
 var connection = mongoose.connection;
 var allCollections = [];
 var userCollections = [];
@@ -103,10 +104,18 @@ var Compression = {
         compiledfields.shift();
         compiledfields.forEach(function(f){
             if(f.indexOf('--num') > -1 || f.indexOf('--date') > -1) {
-                fields[f] = {
-                    'min': _.min(flattened.map(d=>parseFloat(d[f]))),
-                    'max': _.max(flattened.map(d=>parseFloat(d[f])))
+                if(f.indexOf('--date') > -1){
+                    fields[f] = {
+                        'min': _.min(flattened.map(d=>moment().format(d[f]))),
+                        'max': _.max(flattened.map(d=>moment().format(d[f])))
+                    }
+                }else{
+                    fields[f] = {
+                        'min': _.min(flattened.map(d=>parseFloat(d[f]))),
+                        'max': _.max(flattened.map(d=>parseFloat(d[f])))
+                    }
                 }
+                
             } else {
                 fields[f] = _.uniq(flattened.map(d=>d[f]));
             }
