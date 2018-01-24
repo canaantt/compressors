@@ -38,7 +38,7 @@ connection.once('open', function(){
             console.log('******', collectionName);
             var mongoData;
             db.collection(collectionName).find().toArray(function(err, data){
-                mongoData = data;
+                clinicalEventData = data;
             });
 
             var sampleMongData = process.env.GOOD_SAMPLE;
@@ -139,7 +139,22 @@ var Compression = {
         return obj;
     },
     compress_clinicalEvent: function(clinicalEventData){
-        return 'clinicalEventData';
+        var obj = {};
+        var map = {};
+        var events = clinicalEventData.map(c=>c.events).reduce(function(a,b){return a.concat(b)});
+        var mapkeys = _.uniq(events.map(e=>e.type));
+        var data = events.map(e=>{
+            var arr = [];
+            arr.push(e.PatientId);
+            arr.push(mapkeys.indexOf(e.type));
+            arr.push(new Date(e.startDate).getTime()/1000);
+            arr.push(new Date(e.endDate).getTime()/1000);
+            arr.push(_.omit(e, "type", "PatientId", "startDate", "endDate"));
+            return arr;
+        });
+        obj.map = map;
+        obj.data = data;
+        return obj;
     },
     compress_molecular: function(molecularData) {
         var obj = {};
