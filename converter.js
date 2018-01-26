@@ -216,6 +216,8 @@ var Compression = {
 
 
 AWS.config.s3.region
-s3.config.region = 'us-west-2'
-var params = {Bucket:'canaantt-test'};
+var credentials = new AWS.SharedIniFileCredentials({profile: 'default'});
+AWS.config.credentials = credentials;
+s3.config.region = 'us-west-2';
+var params = {Bucket:'canaantt-test1'};
 s3.createBucket(params, function(err, data){ if(err) console.log(err, err.stack); else console.log(data);});
