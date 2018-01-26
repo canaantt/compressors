@@ -1,8 +1,10 @@
 const mongoose = require("mongoose");
+const fs = require('fs');
 const jsonfile = require("jsonfile-promised");
 const _ = require("underscore");
 const asyncLoop = require('node-async-loop');
 const moment = require('moment');
+const zlib = require('zlib');
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 var connection = mongoose.connection;
@@ -26,6 +28,11 @@ mongoose.connect(
     pass: process.env.MONGO_PASSWORD
 });
 
+var credentials = new AWS.SharedIniFileCredentials({profile: 'default'});
+AWS.config.credentials = credentials;
+s3.config.region = 'us-west-2';
+var params = {Bucket:'canaantt-test'};
+
 connection.once('open', function(){
     var db = connection.db; 
     db.listCollections().toArray(function(err, names){
@@ -37,27 +44,37 @@ connection.once('open', function(){
         // console.log(userCollections.filter(collName => collName.indexOf(userProjectIDs[0]) > -1));
         asyncLoop(userCollections, function(collectionName, next){ 
             console.log('******', collectionName);
+            var collectionName = '5a6a52d184674a0047fed264_phenotype';
             db.collection(collectionName).find().toArray(function(err, data){
-                if(collectionName.indexOf("_phenotype")){
-                    Compression.compress_clinical(data);
-                    Compression.compress_clinicalEvent(data);
+                if(collectionName.indexOf("_phenotype") > -1){
+                    var res1 = CompressionFactory.compress_clinical(data);
+                    var clinicalFileName = collectionName.split('_')[0]+'_clinical.json.gz';
+                    gzip_upload2S3_private(res1, clinicalFileName);
+
+                    var res2 = CompressionFactory.compress_clinicalEvent(data);
+                    var clinicalEventFileName = collectionName.split('_')[0]+'_events.json.gz';
+                    gzip_upload2S3_private(res2, clinicalEventFileName);
                 }
-                
-            });
-            db.collection(sampleMongData).find().toArray(function(err, data){
-                if(sampleMongData.indexOf("_samplemap") > -1) {
-                    Compression.compress_sample(data);
+                if(collectionName.indexOf("_EXPR") > -1 || collectionName.indexOf("_CNV") > -1){
+                    var res = CompressionFactory.compress_molecularMatrix(data);
+                    var molecularMatrixFileName = collectionName + '.json.gz';
+                    gzip_upload2S3_private(res, molecularMatrixFileName);
                 }
-            });
-            db.collection(matrixData).find().toArray(function(err, data){
-                if(matrixData.indexOf("_CNV") > -1 || matrixData.indexOf("_EXPR") > -1) {
-                    Compression.compress_molecular(data);
+                if(collectionName.indexOf("_MUT") > -1){
+                    var res = CompressionFactory.compress_mutation(data);
+                    var molecularMutationFileName = collectionName + '.json.gz';
+                    gzip_upload2S3_private(res, molecularMutationFileName);
                 }
-            });
-            db.collection(mutData).find().toArray(function(err, data){
-                if(mutData.indexOf("_MUT") > -1) {
-                    Compression.compress_mutation(data);
-                }
+                if(collectionName.indexOf("_samplemap") > -1){
+                    var res = CompressionFactory.compress_sample(data);
+                    var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
+                    gzip_upload2S3_private(res, sampleMapFileName);
+                } 
+                // if(collectionName.indexOf("_samplemap") > -1){
+                //     var res = CompressionFactory.compress_sample(data);
+                //     var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
+                //     gzip_upload2S3_private(res, sampleMapFileName);
+                // } 
             });
           }, function (err)
           {
@@ -72,7 +89,7 @@ connection.once('open', function(){
     });
 });
 
-var Compression = {  
+var CompressionFactory = {  
     compress_clinical: function(clinicalData) {
         var obj = {};
         var ids = clinicalData.map(c=>c.id);
@@ -95,8 +112,6 @@ var Compression = {
             });
             flattened.push(o);
         });
-
-
         var compiledfields = flattened.map(f=>Object.keys(f)).reduce(function(a,b){return _.uniq(a.concat(b))});
         compiledfields.shift();
         compiledfields.forEach(function(f){
@@ -117,7 +132,6 @@ var Compression = {
                 fields[f] = _.uniq(flattened.map(d=>d[f]));
             }
         });
-
         var values = flattened.map(fd=>{
             return compiledfields.map(key => {
                 if(key.indexOf('--num') > -1 || key.indexOf('--date') > -1) {
@@ -127,17 +141,15 @@ var Compression = {
                 }
             });
         });
-
         obj.ids = ids;
-        obj.genes = genes;
+        obj.fields = fields;
         obj.values = values;
-        console.log(obj.genes.length);
-        console.log(obj.values.length);
         return obj;
     },
     compress_clinicalEvent: function(clinicalEventData){
-        var events = clinicalEventData.map(c=>c.events).reduce(function(a,b){return a.concat(b)});
-        if(events.length > 0){
+        var events = clinicalEventData.map(c=>c.events);
+        if( _.uniq(events).length != 1){
+            events = events.reduce(function(a,b){return a.concat(b)});
             var mapkeys = _.uniq(events.map(e=>e.subType));
             var map = {};
             mapkeys.forEach(k => {
@@ -156,12 +168,13 @@ var Compression = {
             obj.map = map;
             obj.data = data;
             console.log(obj.data[0]);
+            
             return obj;
         } else {
             return null;
         } 
     },
-    compress_molecular: function(molecularData) {
+    compress_molecularMatrix: function(molecularData) {
         var obj = {};
         var ids = molecularData[0].s;
         var genes = molecularData.map(c=>c.m);
@@ -214,10 +227,45 @@ var Compression = {
     }
 };
 
+var gzip_upload2S3_private = function(JSONOBJ, FILENAME){
+    zlib.gzip(JSON.stringify(JSONOBJ), level=9, function(err, result){
+        s3.putObject({Bucket:'canaantt-test', 
+                  Key: FILENAME, 
+                  Body: result, 
+                  ACL:'private'}, 
+                  function(res, err){
+                      console.log(res);
+                      if(err){
+                          console.log(err);
+                      }
+                      console.log('Success!');
+                    });
+    });
+    
+};
 
-AWS.config.s3.region
-var credentials = new AWS.SharedIniFileCredentials({profile: 'default'});
-AWS.config.credentials = credentials;
-s3.config.region = 'us-west-2';
-var params = {Bucket:'canaantt-test1'};
-s3.createBucket(params, function(err, data){ if(err) console.log(err, err.stack); else console.log(data);});
+
+
+/*  
+    AWS S3 related
+    aws-sdk package needs to be installed gloablly to pick up ~/.aws/credentials.
+    - to set ~/.aws/credentials, do `$ aws configure`
+    - sudo npm install -g aws-sdk # definitely delete the local aws-sdk package. 
+    - to be able to require('aws-sdk') from global packages dir, need to export this enviramental variable
+       `export NODE_PATH=/usr/local/lib/node_modules`
+    if there is aws credential issue, when the first direct way is to check process.env in nodeJS.
+    It could be ~/.aws/credential is not set right. refer to the proper profile. 
+    It could be ~/.bash-profile that the AWS_ACCESS_KEY_ID and/or AWS_SECRET_ACCESS_KEY were set earlier.
+        unset AWS_ACCESS_KEY_ID
+        unset AWS_SECRET_ACCESS_KEY
+*/
+
+
+// s3.createBucket(params, function(err, data){ if(err) console.log(err, err.stack); else console.log(data);});
+
+// s3.deleteBucket(params, function(err, data) {
+//     if (err) console.log(err, err.stack); // an error occurred
+//     else     console.log(data);           // successful response
+// });
+
+
