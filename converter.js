@@ -42,50 +42,56 @@ connection.once('open', function(){
         });
         userProjectIDs = _.uniq(userCollections.map(collName => collName.split('_')[0]));
         // console.log(userCollections.filter(collName => collName.indexOf(userProjectIDs[0]) > -1));
-        asyncLoop(userCollections, function(collectionName, next){ 
-            console.log('******', collectionName);
-            var collectionName = '5a6a52d184674a0047fed264_phenotype';
-            db.collection(collectionName).find().toArray(function(err, data){
-                if(collectionName.indexOf("_phenotype") > -1){
-                    var res1 = CompressionFactory.compress_clinical(data);
-                    var clinicalFileName = collectionName.split('_')[0]+'_clinical.json.gz';
-                    gzip_upload2S3_private(res1, clinicalFileName);
-
-                    var res2 = CompressionFactory.compress_clinicalEvent(data);
-                    var clinicalEventFileName = collectionName.split('_')[0]+'_events.json.gz';
-                    gzip_upload2S3_private(res2, clinicalEventFileName);
-                }
-                if(collectionName.indexOf("_EXPR") > -1 || collectionName.indexOf("_CNV") > -1){
-                    var res = CompressionFactory.compress_molecularMatrix(data);
-                    var molecularMatrixFileName = collectionName + '.json.gz';
-                    gzip_upload2S3_private(res, molecularMatrixFileName);
-                }
-                if(collectionName.indexOf("_MUT") > -1){
-                    var res = CompressionFactory.compress_mutation(data);
-                    var molecularMutationFileName = collectionName + '.json.gz';
-                    gzip_upload2S3_private(res, molecularMutationFileName);
-                }
-                if(collectionName.indexOf("_samplemap") > -1){
-                    var res = CompressionFactory.compress_sample(data);
-                    var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
-                    gzip_upload2S3_private(res, sampleMapFileName);
-                } 
-                // if(collectionName.indexOf("_samplemap") > -1){
-                //     var res = CompressionFactory.compress_sample(data);
-                //     var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
-                //     gzip_upload2S3_private(res, sampleMapFileName);
-                // } 
-            });
-          }, function (err)
-          {
-              if (err)
+        userProjectIDs.forEach(function(projectId){
+            var projectCollections = userCollections.filter(col=> col.indexOf(projectId)>-1 );
+            console.log('projectId: ', projectId);
+            asyncLoop(projectCollections, function(collectionName, next){ 
+                console.log('******', collectionName);
+                 db.collection(collectionName).find().toArray(function(err, data){
+                    if(collectionName.indexOf("_phenotype") > -1){
+                        var res1 = CompressionFactory.compress_clinical(data);
+                        var clinicalFileName = collectionName.split('_')[0]+'_clinical.json.gz';
+                        gzip_upload2S3_private(res1, clinicalFileName);
+    
+                        var res2 = CompressionFactory.compress_clinicalEvent(data);
+                        var clinicalEventFileName = collectionName.split('_')[0]+'_events.json.gz';
+                        gzip_upload2S3_private(res2, clinicalEventFileName);
+                    }
+                    if(collectionName.indexOf("_EXPR") > -1 || collectionName.indexOf("_CNV") > -1){
+                        var res = CompressionFactory.compress_molecularMatrix(data);
+                        var molecularMatrixFileName = collectionName + '.json.gz';
+                        gzip_upload2S3_private(res, molecularMatrixFileName);
+                    }
+                    if(collectionName.indexOf("_MUT") > -1){
+                        var res = CompressionFactory.compress_mutation(data);
+                        var molecularMutationFileName = collectionName + '.json.gz';
+                        gzip_upload2S3_private(res, molecularMutationFileName);
+                    }
+                    if(collectionName.indexOf("_samplemap") > -1){
+                        var res = CompressionFactory.compress_sample(data);
+                        var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
+                        gzip_upload2S3_private(res, sampleMapFileName);
+                    } 
+                    // if(collectionName.indexOf("_samplemap") > -1){
+                    //     var res = CompressionFactory.compress_sample(data);
+                    //     var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
+                    //     gzip_upload2S3_private(res, sampleMapFileName);
+                    // } 
+                });
+              }, function (err)
               {
-                  console.error('Error: ' + err.message);
-                  return;
-              }
-              console.log('Finished!');
-              connection.close();
-          });
+                  if (err)
+                  {
+                      console.error('Error: ' + err.message);
+                      return;
+                  }
+                  console.log('Finished!');
+                  connection.close();
+              });
+
+        });
+        
+
     });
 });
 
@@ -241,7 +247,6 @@ var gzip_upload2S3_private = function(JSONOBJ, FILENAME){
                       console.log('Success!');
                     });
     });
-    
 };
 
 
