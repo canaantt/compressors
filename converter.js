@@ -47,31 +47,61 @@ connection.once('open', function(){
             console.log('projectId: ', projectId);
             asyncLoop(projectCollections, function(collectionName, next){ 
                 console.log('******', collectionName);
+                var menifest = {};
+                var files = [];
                  db.collection(collectionName).find().toArray(function(err, data){
                     if(collectionName.indexOf("_phenotype") > -1){
                         var res1 = CompressionFactory.compress_clinical(data);
                         var clinicalFileName = collectionName.split('_')[0]+'_clinical.json.gz';
+                        files.push({
+                            name: "clinical",
+                            dataType: "clinical",
+                            file: clinicalFileName
+                        });
                         gzip_upload2S3_private(res1, clinicalFileName);
     
                         var res2 = CompressionFactory.compress_clinicalEvent(data);
-                        var clinicalEventFileName = collectionName.split('_')[0]+'_events.json.gz';
-                        gzip_upload2S3_private(res2, clinicalEventFileName);
+                        if(res2 !== null){
+                            var clinicalEventFileName = collectionName.split('_')[0]+'_events.json.gz';
+                            files.push({
+                                name: "events",
+                                dataType: "events",
+                                file: clinicalEventFileName
+                            });
+                            gzip_upload2S3_private(res2, clinicalEventFileName);
+                        }
                     }
                     if(collectionName.indexOf("_EXPR") > -1 || collectionName.indexOf("_CNV") > -1){
                         var res = CompressionFactory.compress_molecularMatrix(data);
                         var molecularMatrixFileName = collectionName + '.json.gz';
+                        files.push({
+                            name: collectionName.split('_')[1],
+                            dataType:  collectionName.split('_')[1],
+                            file: molecularMatrixFileName
+                        });
                         gzip_upload2S3_private(res, molecularMatrixFileName);
                     }
                     if(collectionName.indexOf("_MUT") > -1){
                         var res = CompressionFactory.compress_mutation(data);
                         var molecularMutationFileName = collectionName + '.json.gz';
+                        files.push({
+                            name: collectionName.split('_')[1],
+                            dataType:  collectionName.split('_')[1],
+                            file: molecularMutationFileName
+                        });
                         gzip_upload2S3_private(res, molecularMutationFileName);
                     }
                     if(collectionName.indexOf("_samplemap") > -1){
                         var res = CompressionFactory.compress_sample(data);
                         var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
+                        files.push({
+                            name: "samplemap",
+                            dataType: "samplemap",
+                            file: sampleMapFileName
+                        });
                         gzip_upload2S3_private(res, sampleMapFileName);
                     } 
+                    next();
                     // if(collectionName.indexOf("_samplemap") > -1){
                     //     var res = CompressionFactory.compress_sample(data);
                     //     var sampleMapFileName = collectionName.split('_')[0] + '_psmap.json.gz';
@@ -85,6 +115,8 @@ connection.once('open', function(){
                       console.error('Error: ' + err.message);
                       return;
                   }
+                  menifest.files = files;
+                  gzip_upload2S3_private(menifest, projectId+'_manifest.json.gz');
                   console.log('Finished!');
                   connection.close();
               });
@@ -173,8 +205,6 @@ var CompressionFactory = {
             var obj = {};
             obj.map = map;
             obj.data = data;
-            console.log(obj.data[0]);
-            
             return obj;
         } else {
             return null;
@@ -188,8 +218,6 @@ var CompressionFactory = {
         obj.ids = ids;
         obj.genes = genes;
         obj.values = values;
-        console.log(obj.genes.length);
-        console.log(obj.values.length);
         return obj;
     },
     compress_mutation: function(mutationData) {
@@ -213,7 +241,6 @@ var CompressionFactory = {
         obj.ids = ids;
         obj.genes = genes;
         obj.values = values;
-        console.log(obj.values.length);
         return obj;
     },
     compress_sample: function(samplePatientData) {
@@ -225,11 +252,7 @@ var CompressionFactory = {
         keys.forEach(function(key){
             obj[key] = Object.keys(sampleData).filter(sk=> sampleData[sk] == key)
         });
-        console.log(obj);
         return obj;
-    }, 
-    generate_meta_data: function(projectID) {
-        return 'projectID';
     }
 };
 
