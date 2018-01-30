@@ -47,9 +47,9 @@ connection.once('open', function(){
             console.log('projectId: ', projectId);
             asyncLoop(projectCollections, function(collectionName, next){ 
                 console.log('******', collectionName);
-                var menifest = {};
+                var manifest = {};
                 var files = [];
-                 db.collection(collectionName).find().toArray(function(err, data){
+                db.collection(collectionName).find().toArray(function(err, data){
                     if(collectionName.indexOf("_phenotype") > -1){
                         var res1 = CompressionFactory.compress_clinical(data);
                         var clinicalFileName = collectionName.split('_')[0]+'_clinical.json.gz';
@@ -115,11 +115,11 @@ connection.once('open', function(){
                       console.error('Error: ' + err.message);
                       return;
                   }
-                  menifest.files = files;
-                  gzip_upload2S3_private(menifest, projectId+'_manifest.json.gz');
+                  manifest.files = files;
+                  gzip_upload2S3_private(manifest, projectId+'_manifest.json.gz');
                   console.log('Finished!');
                   connection.close();
-              });
+            });
 
         });
         
@@ -261,7 +261,10 @@ var gzip_upload2S3_private = function(JSONOBJ, FILENAME){
         s3.putObject({Bucket:'canaantt-test', 
                   Key: FILENAME, 
                   Body: result, 
-                  ACL:'private'}, 
+                  ACL:'private',
+                  'ContentEncoding': 'gzip',
+                  'ContentType': 'application/json'
+                  }, 
                   function(res, err){
                       console.log(res);
                       if(err){
@@ -296,4 +299,7 @@ var gzip_upload2S3_private = function(JSONOBJ, FILENAME){
 //     else     console.log(data);           // successful response
 // });
 
-
+var params = { Bucket: '<bucket-name>', 
+                Key: '<collection_name>', 
+                Expires: 50 };
+var url = s3.getSignedUrl('getObject', params);
