@@ -29,6 +29,7 @@ mongoose.connect(
 });
 
 var credentials = new AWS.SharedIniFileCredentials({profile: 'default'});
+AWSConfigsS3.UseSignatureVersion4 = false;
 AWS.config.credentials = credentials;
 s3.config.region = 'us-west-2';
 var params = {Bucket:'canaantt-test'};
@@ -45,9 +46,9 @@ connection.once('open', function(){
         userProjectIDs.forEach(function(projectId){
             var projectCollections = userCollections.filter(col=> col.indexOf(projectId)>-1 );
             console.log('projectId: ', projectId);
+            var manifest = {};
             asyncLoop(projectCollections, function(collectionName, next){ 
-                console.log('******', collectionName);
-                var manifest = {};
+                console.log('******', collectionName);               
                 var files = [];
                 db.collection(collectionName).find().toArray(function(err, data){
                     if(collectionName.indexOf("_phenotype") > -1){
@@ -246,7 +247,6 @@ var CompressionFactory = {
     compress_sample: function(samplePatientData) {
         var sampleData = samplePatientData[0];
         var keys = _.uniq(_.values(sampleData));
-        console.log(keys);
         keys.shift();
         var obj = {};
         keys.forEach(function(key){
@@ -303,3 +303,27 @@ var params = { Bucket: '<bucket-name>',
                 Key: '<collection_name>', 
                 Expires: 50 };
 var url = s3.getSignedUrl('getObject', params);
+
+
+var params = { Bucket: 'canaantt-test', 
+                Key: '<collection_name>', 
+                Expires: 50 };
+var url = s3.getSignedUrl('getObject', params);
+
+/* how to rename ::: copy object with a new name with aws-sdk */
+
+var BUCKET_NAME = 'canaantt-test';
+var OLD_KEY = '5a6a528a84674a0047fed262_events.json.gz';
+var NEW_KEY = '5a6a528a84674a0047fed262_v2_events.json.gz';
+
+s3.copyObject({
+                Bucket: BUCKET_NAME, 
+                CopySource: `${BUCKET_NAME}${OLD_KEY}`, 
+                Key: NEW_KEY
+            }).promise()
+    .then(() => 
+            s3.deleteObject({
+            Bucket: BUCKET_NAME, 
+            Key: OLD_KEY
+            }).promise())
+    .catch((e) => console.error(e));
